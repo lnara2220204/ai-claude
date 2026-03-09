@@ -12,8 +12,8 @@ jobs:
     if: |
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@claude re-review'))
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude re-review'))
     permissions:
       contents: read
       pull-requests: write
@@ -49,4 +49,4 @@ jobs:
             Only post GitHub comments - don't submit review text as messages.
 
           claude_args: |
-            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --model claude-sonnet-4-20250514
