@@ -2,49 +2,50 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    types: [opened, ready_for_review]
+  issue_comment:
+    types: [created]
 
 jobs:
   claude-review:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude re-review'))
     permissions:
       contents: read
-      pull-requests: write  # ✅ read → write (PR 코멘트 작성에 필요)
-      issues: write          # ✅ read → write (이슈 코멘트 작성에 필요)
+      pull-requests: write
+      issues: write
       id-token: write
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4  # ✅ v6 → v4 (존재하는 최신 버전)
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
 
       - name: Run Claude Code Review
-        id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # ← 이거 추가
+          github_token: ${{ secrets.GITHUB_TOKEN }} 
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
 
             이 PR의 코드를 리뷰해주세요. 한국어로 답변해주세요.
 
-            우리 프로젝트는 Next.js + TypeScript 기반입니다.
-            다음 항목들을 중점적으로 확인해주세요:
-            - React 컴포넌트 설계 패턴
-            - TypeScript 타입 안정성
-            - Next.js App Router 규칙 준수
-            - 접근성(a11y) 고려 여부
+            다음 항목들을 확인해주세요:
+            - 코드 품질 및 가독성
+            - 잠재적인 버그나 에러
+            - 성능 이슈
+            - 보안 취약점
+            - 모범 사례 준수 여부
 
             리뷰 원칙:
+            - 발견된 문제점과 개선 제안을 구체적으로 설명해주세요.
             - 변경된 diff 기준으로만 리뷰해주세요.
             - 사소한 취향 차이보다 실제 버그 가능성, 유지보수성, 안정성 위주로 리뷰해주세요.
             - 문제가 있으면 파일/맥락 기준으로 구체적으로 설명해주세요.
@@ -52,10 +53,8 @@ jobs:
             - 문제 없으면 먼저 "크게 문제 없음"이라고 알려주세요.
 
             Use `gh pr comment` for top-level feedback.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
 
-          # ✅ 중첩 따옴표 제거 — YAML 멀티라인으로 안전하게 작성
-          claude_args: >-
+          claude_args: |
             --allowed-tools
             Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)
